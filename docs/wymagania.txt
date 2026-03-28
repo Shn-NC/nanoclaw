@@ -1,0 +1,1 @@
+System powinien umożliwiać rejestrację użytkownika oraz resetowanie hasła.

@@ -210,6 +210,16 @@ function buildVolumeMounts(
     readonly: false,
   });
 
+  // Docs directory (read-only for all groups)
+  const docsDir = path.join(projectRoot, 'docs');
+  if (fs.existsSync(docsDir)) {
+    mounts.push({
+      hostPath: docsDir,
+      containerPath: '/docs',
+      readonly: true,
+    });
+  }
+
   // Additional mounts validated against external allowlist (tamper-proof from containers)
   if (group.containerConfig?.additionalMounts) {
     const validatedMounts = validateAdditionalMounts(

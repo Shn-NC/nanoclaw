@@ -648,7 +648,22 @@ async function main(): Promise<void> {
       name?: string,
       channel?: string,
       isGroup?: boolean,
-    ) => storeChatMetadata(chatJid, timestamp, name, channel, isGroup),
+    ) => {
+      storeChatMetadata(chatJid, timestamp, name, channel, isGroup);
+      if (!registeredGroups[chatJid] && name) {
+        const folderName = name.toLowerCase().replace(/[^a-z0-9]/g, '_');
+        const newGroup: RegisteredGroup = {
+          name,
+          folder: folderName,
+          trigger: DEFAULT_TRIGGER,
+          added_at: timestamp,
+          isMain: false,
+          requiresTrigger: true,
+        };
+        registerGroup(chatJid, newGroup);
+        logger.info({ chatJid, name }, 'Auto-registered chat via onChatMetadata');
+      }
+    },
     registeredGroups: () => registeredGroups,
   };
 

@@ -101,7 +101,7 @@ export class TelegramChannel implements Channel {
     const roleLabel = role || 'default';
 
     // Telegram bot commands handled here — skip them in the general handler
-    const TELEGRAM_BOT_COMMANDS = new Set(['chatid', 'ping']);
+    const TELEGRAM_BOT_COMMANDS = new Set(['chatid', 'ping', 'register']);
 
     // Command to get chat ID (useful for registration)
     bot.command('chatid', (ctx) => {
@@ -121,16 +121,25 @@ export class TelegramChannel implements Channel {
     // Dodajemy komendę /register, która rejestruje czat w systemie, umożliwiając pełną funkcjonalność
     bot.command('register', async (ctx) => {
       const chatJid = `${entry.jidPrefix}:${ctx.chat.id}`;
-      const chatName = ctx.chat.type === 'private'
-        ? ctx.from?.first_name || 'Private'
-        : (ctx.chat as any).title || chatJid;
+      const chatName =
+        ctx.chat.type === 'private'
+          ? ctx.from?.first_name || 'Private'
+          : (ctx.chat as any).title || chatJid;
       const isGroup = ctx.chat.type !== 'private';
-      this.opts.onChatMetadata(chatJid, new Date().toISOString(), chatName, 'telegram', isGroup);
+      this.opts.onChatMetadata(
+        chatJid,
+        new Date().toISOString(),
+        chatName,
+        'telegram',
+        isGroup,
+      );
       const group = this.opts.registeredGroups()[chatJid];
       if (group) {
         await ctx.reply(`Chat registered successfully! JID: ${chatJid}`);
       } else {
-        await ctx.reply(`Failed to register chat. Please try again or contact admin.`);
+        await ctx.reply(
+          `Failed to register chat. Please try again or contact admin.`,
+        );
       }
     });
     // Command to check bot status

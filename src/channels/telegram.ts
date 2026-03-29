@@ -118,7 +118,21 @@ export class TelegramChannel implements Channel {
         { parse_mode: 'Markdown' },
       );
     });
-
+    // Dodajemy komendę /register, która rejestruje czat w systemie, umożliwiając pełną funkcjonalność
+    bot.command('register', async (ctx) => {
+      const chatJid = `${entry.jidPrefix}:${ctx.chat.id}`;
+      const chatName = ctx.chat.type === 'private'
+        ? ctx.from?.first_name || 'Private'
+        : (ctx.chat as any).title || chatJid;
+      const isGroup = ctx.chat.type !== 'private';
+      this.opts.onChatMetadata(chatJid, new Date().toISOString(), chatName, 'telegram', isGroup);
+      const group = this.opts.registeredGroups()[chatJid];
+      if (group) {
+        await ctx.reply(`Chat registered successfully! JID: ${chatJid}`);
+      } else {
+        await ctx.reply(`Failed to register chat. Please try again or contact admin.`);
+      }
+    });
     // Command to check bot status
     bot.command('ping', (ctx) => {
       ctx.reply(`${ASSISTANT_NAME} (${roleLabel}) is online.`);
@@ -131,33 +145,6 @@ export class TelegramChannel implements Channel {
         'text:',
         ctx.message.text,
       );
-      // Automatyczna rejestracja czatu, jeśli jeszcze nie istnieje
-      const autoChatJid = `${entry.jidPrefix}:${ctx.chat.id}`;
-      let autoGroup = this.opts.registeredGroups()[autoChatJid];
-      if (!autoGroup) {
-        const chatName =
-          ctx.chat.type === 'private'
-            ? ctx.from?.first_name || 'Private'
-            : (ctx.chat as any).title || autoChatJid;
-        const isGroup = ctx.chat.type !== 'private';
-        this.opts.onChatMetadata(
-          autoChatJid,
-          new Date().toISOString(),
-          chatName,
-          'telegram',
-          isGroup,
-        );
-        // Po dodaniu metadanych, grupa powinna być dostępna w kolejnych wywołaniach
-        autoGroup = this.opts.registeredGroups()[autoChatJid];
-        if (!autoGroup) {
-          // Jeśli nadal nie ma, logujemy błąd i przerywamy
-          logger.warn(
-            { chatJid: autoChatJid },
-            'Failed to register chat automatically',
-          );
-          return;
-        }
-      }
       // if (ctx.message.text.includes('test')) {
       // await ctx.reply('I received your test message!');
       // return;
@@ -167,7 +154,7 @@ export class TelegramChannel implements Channel {
         if (TELEGRAM_BOT_COMMANDS.has(cmd)) return;
       }
 
-      const chatJid = `${jidPrefix}:${ctx.chat.id}`;
+      const chatJid = `${entry.jidPrefix}:${ctx.chat.id}`;
       let content = ctx.message.text;
       const timestamp = new Date(ctx.message.date * 1000).toISOString();
       const senderName =

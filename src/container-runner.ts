@@ -220,6 +220,16 @@ function buildVolumeMounts(
     });
   }
 
+  // Shared inter-agent directory — read-write for all groups.
+  // Created on first use; agents communicate via /shared/inbox/.
+  const sharedDir = path.join(GROUPS_DIR, 'shared');
+  fs.mkdirSync(path.join(sharedDir, 'inbox'), { recursive: true });
+  mounts.push({
+    hostPath: sharedDir,
+    containerPath: '/shared',
+    readonly: false,
+  });
+
   // Additional mounts validated against external allowlist (tamper-proof from containers)
   if (group.containerConfig?.additionalMounts) {
     const validatedMounts = validateAdditionalMounts(

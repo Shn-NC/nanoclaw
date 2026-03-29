@@ -267,6 +267,14 @@ async function buildContainerArgs(
       'OneCLI gateway not reachable — container will have no credentials',
     );
   }
+  
+  // Dodajemy bezpośrednio klucz API Anthropic, jeśli jest dostępny w środowisku hosta, aby zapewnić, że jest dostępny w kontenerze, nawet jeśli OneCLI nie jest używany.
+  if (process.env.ANTHROPIC_API_KEY) {
+    args.push('-e', `ANTHROPIC_API_KEY=${process.env.ANTHROPIC_API_KEY}`);
+    logger.debug({ containerName }, 'ANTHROPIC_API_KEY added to container environment');
+  } else {
+    logger.warn({ containerName }, 'ANTHROPIC_API_KEY not found in host environment');
+  }
 
   // Runtime-specific args for host gateway resolution
   args.push(...hostGatewayArgs());

@@ -661,7 +661,10 @@ async function main(): Promise<void> {
           requiresTrigger: true,
         };
         registerGroup(chatJid, newGroup);
-        logger.info({ chatJid, name }, 'Auto-registered chat via onChatMetadata');
+        logger.info(
+          { chatJid, name },
+          'Auto-registered chat via onChatMetadata',
+        );
       }
     },
     registeredGroups: () => registeredGroups,

@@ -1,3 +1,5 @@
+import dotenv from 'dotenv';
+dotenv.config();
 import fs from 'fs';
 import path from 'path';
 
@@ -30,6 +32,7 @@ import {
   ensureContainerRuntimeRunning,
 } from './container-runtime.js';
 import {
+  deleteRegisteredGroupsByFolders,
   getAllChats,
   getAllRegisteredGroups,
   getAllSessions,
@@ -66,6 +69,14 @@ import { logger } from './logger.js';
 
 // Re-export for backwards compatibility during refactor
 export { escapeXml, formatMessages } from './router.js';
+
+const BOT_FOLDER_MAP: Record<string, string> = {
+  'tg_nanoclaw_sa_agent_bot': 'telegram_SolutionDesigner',
+  'tg_nanoclaw_tm_agent_bot': 'telegram_TestManager',
+  'tg_nanoclaw_tl_agent_bot': 'telegram_TestLead',
+  'tg_nanoclaw_mt_agent_bot': 'telegram_ManualTester',
+  'tg_nanoclaw_ae_agent_bot': 'telegram_AutomationEngineer',
+};
 
 let lastTimestamp = '';
 let sessions: Record<string, string> = {};
@@ -550,6 +561,19 @@ async function main(): Promise<void> {
   ensureContainerSystemRunning();
   initDatabase();
   logger.info('Database initialized');
+
+  // Usuń błędne rejestracje z okresu przed poprawką nazewnictwa folderów
+  const staleCount = deleteRegisteredGroupsByFolders([
+    'john',
+    'solution_designer',
+    'test_manager',
+    'test_lead',
+    'automation_engineer',
+  ]);
+  if (staleCount > 0) {
+    logger.info({ staleCount }, 'Removed stale group registrations');
+  }
+
   loadState();
 
   // Ensure OneCLI agents exist for all registered groups.
@@ -651,7 +675,10 @@ async function main(): Promise<void> {
     ) => {
       storeChatMetadata(chatJid, timestamp, name, channel, isGroup);
       if (!registeredGroups[chatJid] && name) {
-        const folderName = name.toLowerCase().replace(/[^a-z0-9]/g, '_');
+        const jidPrefix = chatJid.split(':')[0];
+        const folderName =
+          BOT_FOLDER_MAP[jidPrefix] ??
+          name.toLowerCase().replace(/[^a-z0-9]/g, '_');
         const newGroup: RegisteredGroup = {
           name,
           folder: folderName,

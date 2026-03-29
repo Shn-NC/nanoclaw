@@ -633,6 +633,15 @@ export function setRegisteredGroup(jid: string, group: RegisteredGroup): void {
   );
 }
 
+export function deleteRegisteredGroupsByFolders(folders: string[]): number {
+  if (folders.length === 0) return 0;
+  const placeholders = folders.map(() => '?').join(',');
+  const result = db
+    .prepare(`DELETE FROM registered_groups WHERE folder IN (${placeholders})`)
+    .run(...folders);
+  return result.changes;
+}
+
 export function getAllRegisteredGroups(): Record<string, RegisteredGroup> {
   const rows = db.prepare('SELECT * FROM registered_groups').all() as Array<{
     jid: string;

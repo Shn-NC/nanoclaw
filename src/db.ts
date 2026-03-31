@@ -330,7 +330,7 @@ export function getNewMessages(
     SELECT * FROM (
       SELECT id, chat_jid, sender, sender_name, content, timestamp, is_from_me
       FROM messages
-      WHERE timestamp > ? AND chat_jid IN (${placeholders})
+      WHERE timestamp >= ? AND chat_jid IN (${placeholders})
         AND is_bot_message = 0 AND content NOT LIKE ?
         AND content != '' AND content IS NOT NULL
       ORDER BY timestamp DESC
@@ -640,6 +640,42 @@ export function deleteRegisteredGroupsByFolders(folders: string[]): number {
     .prepare(`DELETE FROM registered_groups WHERE folder IN (${placeholders})`)
     .run(...folders);
   return result.changes;
+}
+
+/**
+ * Migrate agent group settings:
+ * - Updates trigger_pattern for all JIDs in each folder.
+ * - Sets requires_trigger = 0 for private chat JIDs (positive numeric IDs,
+ *   i.e. jid does NOT match '%:-%').
+ * Returns the total number of updated rows.
+ */
+export function migrateAgentGroupSettings(
+  folderTriggers: Record<string, string>,
+): number {
+  let changes = 0;
+
+  for (const [folder, trigger] of Object.entries(folderTriggers)) {
+    const r = db
+      .prepare(
+        `UPDATE registered_groups SET trigger_pattern = ? WHERE folder = ?`,
+      )
+      .run(trigger, folder);
+    changes += r.changes;
+  }
+
+  const folders = Object.keys(folderTriggers);
+  if (folders.length > 0) {
+    const placeholders = folders.map(() => '?').join(',');
+    const r = db
+      .prepare(
+        `UPDATE registered_groups SET requires_trigger = 0
+         WHERE folder IN (${placeholders}) AND jid NOT LIKE '%:-%'`,
+      )
+      .run(...folders);
+    changes += r.changes;
+  }
+
+  return changes;
 }
 
 export function getAllRegisteredGroups(): Record<string, RegisteredGroup> {

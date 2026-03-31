@@ -1,7 +1,7 @@
 import https from 'https';
 import { Api, Bot } from 'grammy';
 
-import { ASSISTANT_NAME, TRIGGER_PATTERN } from '../config.js';
+import { ASSISTANT_NAME } from '../config.js';
 import { readEnvFile } from '../env.js';
 import { logger } from '../logger.js';
 import { registerChannel, ChannelOpts } from './registry.js';
@@ -154,10 +154,6 @@ export class TelegramChannel implements Channel {
         'text:',
         ctx.message.text,
       );
-      // if (ctx.message.text.includes('test')) {
-      // await ctx.reply('I received your test message!');
-      // return;
-      // }
       if (ctx.message.text.startsWith('/')) {
         const cmd = ctx.message.text.slice(1).split(/[\s@]/)[0].toLowerCase();
         if (TELEGRAM_BOT_COMMANDS.has(cmd)) return;
@@ -175,33 +171,14 @@ export class TelegramChannel implements Channel {
       const msgId = ctx.message.message_id.toString();
       const threadId = ctx.message.message_thread_id;
 
-      // Determine chat name
       const chatName =
         ctx.chat.type === 'private'
           ? senderName
           : (ctx.chat as any).title || chatJid;
-
-      // Translate Telegram @bot_username mentions into TRIGGER_PATTERN format.
-      const botUsername = ctx.me?.username?.toLowerCase();
-      if (botUsername) {
-        const entities = ctx.message.entities || [];
-        const isBotMentioned = entities.some((entity) => {
-          if (entity.type === 'mention') {
-            const mentionText = content
-              .substring(entity.offset, entity.offset + entity.length)
-              .toLowerCase();
-            return mentionText === `@${botUsername}`;
-          }
-          return false;
-        });
-        if (isBotMentioned && !TRIGGER_PATTERN.test(content)) {
-          content = `@${ASSISTANT_NAME} ${content}`;
-        }
-      }
-
-      // Store chat metadata for discovery
       const isGroup =
         ctx.chat.type === 'group' || ctx.chat.type === 'supergroup';
+
+      // Store chat metadata for discovery
       this.opts.onChatMetadata(
         chatJid,
         timestamp,
@@ -220,7 +197,32 @@ export class TelegramChannel implements Channel {
         return;
       }
 
-      // Deliver message — startMessageLoop() will pick it up
+      // Build this bot's personal trigger regex (e.g. /^@Bill\b/i).
+      const personalTrigger = (group.trigger || `@${ASSISTANT_NAME}`).trim();
+      const personalTriggerRe = new RegExp(
+        `^${personalTrigger.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`,
+        'i',
+      );
+
+      // Translate Telegram @bot_username mentions into this bot's personal trigger.
+      const botUsername = ctx.me?.username?.toLowerCase();
+      if (botUsername) {
+        const entities = ctx.message.entities || [];
+        const isBotMentioned = entities.some((entity) => {
+          if (entity.type === 'mention') {
+            const mentionText = content
+              .substring(entity.offset, entity.offset + entity.length)
+              .toLowerCase();
+            return mentionText === `@${botUsername}`;
+          }
+          return false;
+        });
+        if (isBotMentioned && !personalTriggerRe.test(content)) {
+          content = `${personalTrigger} ${content}`;
+        }
+      }
+
+      // Store message — startMessageLoop() decides whether to invoke the agent.
       this.opts.onMessage(chatJid, {
         id: msgId,
         chat_jid: chatJid,
@@ -231,6 +233,20 @@ export class TelegramChannel implements Channel {
         is_from_me: false,
         thread_id: threadId ? threadId.toString() : undefined,
       });
+
+      // Group chat: silently store messages not addressed to this bot as context.
+      // Private chat: every message reaches the agent (requiresTrigger = false).
+      if (isGroup) {
+        const hasTrigger = personalTriggerRe.test(content.trim());
+        const isBroadcast = /(@everyone|@team)\b/i.test(content);
+        if (!hasTrigger && !isBroadcast) {
+          logger.debug(
+            { chatJid, chatName, role: roleLabel },
+            'Group context message stored (no trigger)',
+          );
+          return;
+        }
+      }
 
       logger.info(
         { chatJid, chatName, sender: senderName, role: roleLabel },

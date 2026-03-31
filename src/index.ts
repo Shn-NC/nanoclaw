@@ -33,6 +33,7 @@ import {
 } from './container-runtime.js';
 import {
   deleteRegisteredGroupsByFolders,
+  migrateAgentGroupSettings,
   getAllChats,
   getAllRegisteredGroups,
   getAllSessions,
@@ -71,14 +72,23 @@ import { logger } from './logger.js';
 export { escapeXml, formatMessages } from './router.js';
 
 const BOT_FOLDER_MAP: Record<string, string> = {
-  'tg_nanoclaw_sa_agent_bot': 'telegram_SolutionDesigner',
-  'tg_nanoclaw_tm_agent_bot': 'telegram_TestManager',
-  'tg_nanoclaw_tl_agent_bot': 'telegram_TestLead',
-  'tg_nanoclaw_mt_agent_bot': 'telegram_ManualTester',
-  'tg_nanoclaw_ae_agent_bot': 'telegram_AutomationEngineer',
+  tg_nanoclaw_sa_agent_bot: 'telegram_SolutionDesigner',
+  tg_nanoclaw_tm_agent_bot: 'telegram_TestManager',
+  tg_nanoclaw_tl_agent_bot: 'telegram_TestLead',
+  tg_nanoclaw_mt_agent_bot: 'telegram_ManualTester',
+  tg_nanoclaw_ae_agent_bot: 'telegram_AutomationEngineer',
+};
+
+const BOT_TRIGGER_MAP: Record<string, string> = {
+  telegram_SolutionDesigner: '@Bill',
+  telegram_TestManager: '@Roy',
+  telegram_TestLead: '@Tony',
+  telegram_ManualTester: '@Rick',
+  telegram_AutomationEngineer: '@Jim',
 };
 
 let lastTimestamp = '';
+let lastSeenIds = new Set<string>();
 let sessions: Record<string, string> = {};
 let registeredGroups: Record<string, RegisteredGroup> = {};
 let lastAgentTimestamp: Record<string, string> = {};
@@ -257,7 +267,10 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
         triggerPattern.test(m.content.trim()) &&
         (m.is_from_me || isTriggerAllowed(chatJid, m.sender, allowlistCfg)),
     );
-    if (!hasTrigger) return true;
+    const isGlobalBroadcast = missedMessages.some((m) =>
+      /(@everyone|@team)\b/i.test(m.content),
+    );
+    if (!hasTrigger && !isGlobalBroadcast) return true;
   }
 
   const prompt = formatMessages(missedMessages, TIMEZONE);
@@ -439,10 +452,14 @@ async function startMessageLoop(): Promise<void> {
   while (true) {
     try {
       const jids = Object.keys(registeredGroups);
-      const { messages, newTimestamp } = getNewMessages(
+      const { messages: rawMessages, newTimestamp } = getNewMessages(
         jids,
         lastTimestamp,
         ASSISTANT_NAME,
+      );
+      // Deduplicate: >= re-fetches messages at lastTimestamp; filter already-seen IDs.
+      const messages = rawMessages.filter(
+        (m) => !lastSeenIds.has(`${m.id}:${m.chat_jid}`),
       );
 
       if (messages.length > 0) {
@@ -450,6 +467,12 @@ async function startMessageLoop(): Promise<void> {
 
         // Advance the "seen" cursor for all messages immediately
         lastTimestamp = newTimestamp;
+        // Remember IDs at the new cursor — they'll be re-fetched next poll due to >=.
+        lastSeenIds = new Set(
+          rawMessages
+            .filter((m) => m.timestamp === newTimestamp)
+            .map((m) => `${m.id}:${m.chat_jid}`),
+        );
         saveState();
 
         // Deduplicate by group
@@ -488,7 +511,10 @@ async function startMessageLoop(): Promise<void> {
                 (m.is_from_me ||
                   isTriggerAllowed(chatJid, m.sender, allowlistCfg)),
             );
-            if (!hasTrigger) continue;
+            const isGlobalBroadcast = groupMessages.some((m) =>
+              /(@everyone|@team)\b/i.test(m.content),
+            );
+            if (!hasTrigger && !isGlobalBroadcast) continue;
           }
 
           // Pull all messages since lastAgentTimestamp so non-trigger
@@ -572,6 +598,20 @@ async function main(): Promise<void> {
   ]);
   if (staleCount > 0) {
     logger.info({ staleCount }, 'Removed stale group registrations');
+  }
+
+  const agentMigrated = migrateAgentGroupSettings({
+    telegram_SolutionDesigner: '@Bill',
+    telegram_TestManager: '@Roy',
+    telegram_TestLead: '@Tony',
+    telegram_ManualTester: '@Rick',
+    telegram_AutomationEngineer: '@Jim',
+  });
+  if (agentMigrated > 0) {
+    logger.info(
+      { agentMigrated },
+      'Migrated agent trigger patterns and private chat settings',
+    );
   }
 
   loadState();
@@ -682,10 +722,10 @@ async function main(): Promise<void> {
         const newGroup: RegisteredGroup = {
           name,
           folder: folderName,
-          trigger: DEFAULT_TRIGGER,
+          trigger: BOT_TRIGGER_MAP[folderName] ?? DEFAULT_TRIGGER,
           added_at: timestamp,
           isMain: false,
-          requiresTrigger: true,
+          requiresTrigger: isGroup !== false,
         };
         registerGroup(chatJid, newGroup);
         logger.info(

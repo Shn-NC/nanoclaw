@@ -153,7 +153,7 @@ function getOrRecoverCursor(chatJid: string): string {
     saveState();
     return botTs;
   }
-  return '';
+  return new Date(Date.now() - 5 * 60 * 1000).toISOString();
 }
 
 function saveState(): void {
@@ -281,6 +281,15 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
   lastAgentTimestamp[chatJid] =
     missedMessages[missedMessages.length - 1].timestamp;
   saveState();
+
+  const newestMsgAge = Date.now() - new Date(missedMessages[missedMessages.length - 1].timestamp).getTime();
+  if (newestMsgAge > 10 * 60 * 1000) {
+    logger.warn(
+      { group: group.name, newestMessage: missedMessages[missedMessages.length - 1].timestamp },
+      'Skipping agent: messages are older than 10 minutes, cursor advanced',
+    );
+    return true;
+  }
 
   logger.info(
     { group: group.name, messageCount: missedMessages.length },

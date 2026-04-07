@@ -36,3 +36,18 @@ groups/global/*
 .nanoclaw/
 
 agents-sdk-docs
+!groups/telegram_SolutionDesigner/
+groups/telegram_SolutionDesigner/*
+!groups/telegram_SolutionDesigner/CLAUDE.md
+!groups/telegram_TestManager/
+groups/telegram_TestManager/*
+!groups/telegram_TestManager/CLAUDE.md
+!groups/telegram_TestLead/
+groups/telegram_TestLead/*
+!groups/telegram_TestLead/CLAUDE.md
+!groups/telegram_ManualTester/
+groups/telegram_ManualTester/*
+!groups/telegram_ManualTester/CLAUDE.md
+!groups/telegram_AutomationEngineer/
+groups/telegram_AutomationEngineer/*
+!groups/telegram_AutomationEngineer/CLAUDE.md

@@ -282,10 +282,15 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
     missedMessages[missedMessages.length - 1].timestamp;
   saveState();
 
-  const newestMsgAge = Date.now() - new Date(missedMessages[missedMessages.length - 1].timestamp).getTime();
+  const newestMsgAge =
+    Date.now() -
+    new Date(missedMessages[missedMessages.length - 1].timestamp).getTime();
   if (newestMsgAge > 10 * 60 * 1000) {
     logger.warn(
-      { group: group.name, newestMessage: missedMessages[missedMessages.length - 1].timestamp },
+      {
+        group: group.name,
+        newestMessage: missedMessages[missedMessages.length - 1].timestamp,
+      },
       'Skipping agent: messages are older than 10 minutes, cursor advanced',
     );
     return true;

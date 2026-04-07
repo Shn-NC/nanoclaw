@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TaskFlow - Zarządzanie Zadaniami</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --success: #16a34a;
+            --warning: #d97706;
+            --danger: #dc2626;
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+            --text: #1e293b;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+            --shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+        
+        /* Navigation */
+        .navbar { background: var(--primary); color: white; padding: 0 2rem; display: flex; align-items: center; height: 60px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+        .navbar .logo { font-size: 1.5rem; font-weight: 700; margin-right: 3rem; }
+        .navbar nav a { color: rgba(255,255,255,0.85); text-decoration: none; padding: 0.5rem 1rem; border-radius: 6px; transition: all 0.2s; margin-right: 0.5rem; }
+        .navbar nav a:hover, .navbar nav a.active { background: rgba(255,255,255,0.15); color: white; }
+        .navbar .user-info { margin-left: auto; display: flex; align-items: center; gap: 0.75rem; }
+        .navbar .user-info .avatar { width: 36px; height: 36px; border-radius: 50%; background: rgba(255,255,255,0.25); display: flex; align-items: center; justify-content: center; font-weight: 600; }
+        
+        /* Page content */
+        .page { display: none; padding: 2rem; max-width: 1200px; margin: 0 auto; }
+        .page.active { display: block; }
+        .page-title { font-size: 1.75rem; font-weight: 700; margin-bottom: 1.5rem; color: var(--text); }
+        
+        /* Cards */
+        .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; margin-bottom: 1rem; box-shadow: var(--shadow); }
+        .card-title { font-size: 1.1rem; font-weight: 600; margin-bottom: 0.75rem; }
+        
+        /* Forms */
+        .form-group { margin-bottom: 1rem; }
+        .form-group label { display: block; font-weight: 500; margin-bottom: 0.35rem; font-size: 0.9rem; }
+        .form-group input[type="text"],
+        .form-group input[type="email"],
+        .form-group input[type="date"],
+        .form-group input[type="number"],
+        .form-group textarea,
+        .form-group select {
+            width: 100%; padding: 0.6rem 0.75rem; border: 1px solid var(--border);
+            border-radius: 8px; font-size: 0.95rem; font-family: inherit;
+            transition: border-color 0.2s;
+        }
+        .form-group input:focus, .form-group textarea:focus, .form-group select:focus {
+            outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37,99,235,0.15);
+        }
+        .form-group textarea { resize: vertical; min-height: 80px; }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        
+        /* Radio & Checkbox */
+        .radio-group, .checkbox-group { display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 0.25rem; }
+        .radio-group label, .checkbox-group label { display: flex; align-items: center; gap: 0.4rem; font-weight: 400; cursor: pointer; }
+        
+        /* Buttons */
+        .btn { padding: 0.6rem 1.25rem; border: none; border-radius: 8px; font-size: 0.9rem; font-weight: 500; cursor: pointer; transition: all 0.2s; display: inline-flex; align-items: center; gap: 0.4rem; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover { background: var(--primary-dark); }
+        .btn-success { background: var(--success); color: white; }
+        .btn-success:hover { background: #15803d; }
+        .btn-warning { background: var(--warning); color: white; }
+        .btn-warning:hover { background: #b45309; }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-danger:hover { background: #b91c1c; }
+        .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
+        .btn-outline:hover { background: var(--bg); }
+        .btn-group { display: flex; gap: 0.5rem; margin-top: 1rem; }
+        
+        /* Table */
+        .table-container { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 0.75rem 1rem; text-align: left; border-bottom: 1px solid var(--border); }
+        th { font-weight: 600; font-size: 0.85rem; text-transform: uppercase; color: var(--text-muted); background: #f1f5f9; }
+        tr:hover td { background: #f8fafc; }
+        
+        /* Badges */
+        .badge { padding: 0.2rem 0.6rem; border-radius: 999px; font-size: 0.75rem; font-weight: 600; display: inline-block; }
+        .badge-high { background: #fef2f2; color: #dc2626; }
+        .badge-medium { background: #fffbeb; color: #d97706; }
+        .badge-low { background: #f0fdf4; color: #16a34a; }
+        .badge-new { background: #eff6ff; color: #2563eb; }
+        .badge-progress { background: #fffbeb; color: #d97706; }
+        .badge-done { background: #f0fdf4; color: #16a34a; }
+        
+        /* Stats */
+        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.5rem; }
+        .stat-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; text-align: center; box-shadow: var(--shadow); }
+        .stat-card .stat-value { font-size: 2rem; font-weight: 700; color: var(--primary); }
+        .stat-card .stat-label { font-size: 0.85rem; color: var(--text-muted); margin-top: 0.25rem; }
+        
+        /* Modal */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 100; align-items: center; justify-content: center; }
+        .modal-overlay.active { display: flex; }
+        .modal { background: white; border-radius: 16px; padding: 2rem; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto; }
+        .modal-title { font-size: 1.25rem; font-weight: 700; margin-bottom: 1rem; }
+        
+        /* Toast */
+        .toast-container { position: fixed; top: 80px; right: 20px; z-index: 200; }
+        .toast { background: white; border: 1px solid var(--border); border-radius: 10px; padding: 1rem 1.25rem; margin-bottom: 0.5rem; box-shadow: 0 4px 12px rgba(0,0,0,0.15); display: flex; align-items: center; gap: 0.5rem; animation: slideIn 0.3s ease; min-width: 280px; }
+        .toast.success { border-left: 4px solid var(--success); }
+        .toast.error { border-left: 4px solid var(--danger); }
+        .toast.info { border-left: 4px solid var(--primary); }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        
+        /* Filters */
+        .filters { display: flex; gap: 0.75rem; margin-bottom: 1.5rem; flex-wrap: wrap; align-items: center; }
+        .filters select, .filters input { padding: 0.5rem 0.75rem; border: 1px solid var(--border); border-radius: 8px; font-size: 0.9rem; }
+        
+        /* Progress bar */
+        .progress-bar { height: 8px; background: #e2e8f0; border-radius: 999px; overflow: hidden; }
+        .progress-bar .fill { height: 100%; background: var(--primary); border-radius: 999px; transition: width 0.5s; }
+        
+        /* NEW: Comment section styles */
+        .comment-section { margin-top: 1rem; border-top: 1px solid var(--border); padding-top: 1rem; }
+        .comment { background: #f8fafc; border-radius: 8px; padding: 0.75rem; margin-bottom: 0.5rem; }
+        .comment .comment-author { font-weight: 600; font-size: 0.85rem; }
+        .comment .comment-date { font-size: 0.75rem; color: var(--text-muted); }
+        .comment .comment-text { margin-top: 0.25rem; font-size: 0.9rem; }
+        
+        /* NEW: Sort indicators */
+        th.sortable { cursor: pointer; user-select: none; }
+        th.sortable:hover { background: #e2e8f0; }
+        th.sort-asc::after { content: ' ▲'; }
+        th.sort-desc::after { content: ' ▼'; }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+            .form-row { grid-template-columns: 1fr; }
+            .navbar { padding: 0 1rem; }
+            .navbar nav { display: none; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- NAVBAR -->
+<div class="navbar">
+    <div class="logo">📋 TaskFlow</div>
+    <nav>
+        <a href="#" onclick="showPage('dashboard')" class="active" id="nav-dashboard">Dashboard</a>
+        <a href="#" onclick="showPage('tasks')" id="nav-tasks">Zadania</a>
+        <a href="#" onclick="showPage('new-task')" id="nav-new-task">Nowe zadanie</a>
+        <a href="#" onclick="showPage('team')" id="nav-team">Zespół</a>
+        <a href="#" onclick="showPage('reports')" id="nav-reports">Raporty</a>
+        <a href="#" onclick="showPage('settings')" id="nav-settings">Ustawienia</a>
+    </nav>
+    <div class="user-info">
+        <span>Jan Kowalski</span>
+        <div class="avatar">JK</div>
+    </div>
+</div>
+
+<!-- TOAST CONTAINER -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- PAGE: DASHBOARD -->
+<div class="page active" id="page-dashboard">
+    <h1 class="page-title">Dashboard</h1>
+    
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-value" id="stat-total">0</div>
+            <div class="stat-label">Wszystkie zadania</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="stat-new">0</div>
+            <div class="stat-label">Nowe</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="stat-progress">0</div>
+            <div class="stat-label">W trakcie</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="stat-done">0</div>
+            <div class="stat-label">Ukończone</div>
+        </div>
+    </div>
+    
+    <div class="card">
+        <div class="card-title">Postęp projektu</div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+            <span id="progress-label">0%</span>
+            <span id="progress-count">0 / 0 ukończonych</span>
+        </div>
+        <div class="progress-bar">
+            <div class="fill" id="progress-fill" style="width: 0%"></div>
+        </div>
+    </div>
+    
+    <div class="card">
+        <div class="card-title">Ostatnio dodane zadania</div>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Nazwa</th>
+                        <th>Priorytet</th>
+                        <th>Status</th>
+                        <th>Termin</th>
+                    </tr>
+                </thead>
+                <tbody id="recent-tasks"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- PAGE: TASKS -->
+<div class="page" id="page-tasks">
+    <h1 class="page-title">Lista zadań</h1>
+    
+    <div class="filters">
+        <select id="filter-status" onchange="renderTasks()">
+            <option value="">Wszystkie statusy</option>
+            <option value="Nowe">Nowe</option>
+            <option value="W trakcie">W trakcie</option>
+            <option value="Ukończone">Ukończone</option>
+        </select>
+        <select id="filter-priority" onchange="renderTasks()">
+            <option value="">Wszystkie priorytety</option>
+            <option value="Krytyczny">Krytyczny</option>
+            <option value="Wysoki">Wysoki</option>
+            <option value="Średni">Średni</option>
+            <option value="Niski">Niski</option>
+        </select>
+        <select id="filter-category" onchange="renderTasks()">
+            <option value="">Wszystkie kategorie</option>
+            <option value="Rozwój">Rozwój</option>
+            <option value="Testowanie">Testowanie</option>
+            <option value="Dokumentacja">Dokumentacja</option>
+            <option value="Infrastruktura">Infrastruktura</option>
+            <option value="Inne">Inne</option>
+        </select>
+        <input type="text" id="filter-search" placeholder="Szukaj zadania..." oninput="renderTasks()" />
+        <button class="btn btn-primary" onclick="showPage('new-task')">+ Nowe zadanie</button>
+    </div>
+    
+    <div class="card">
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th class="sortable" onclick="sortTasks('id')">ID</th>
+                        <th class="sortable" onclick="sortTasks('name')">Nazwa</th>
+                        <th>Kategoria</th>
+                        <th class="sortable" onclick="sortTasks('priority')">Priorytet</th>
+                        <th>Status</th>
+                        <th>Przypisane do</th>
+                        <th class="sortable" onclick="sortTasks('deadline')">Termin</th>
+                        <th>Akcje</th>
+                    </tr>
+                </thead>
+                <tbody id="tasks-table"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- PAGE: NEW TASK -->
+<div class="page" id="page-new-task">
+    <h1 class="page-title">Dodaj nowe zadanie</h1>
+    
+    <div class="card">
+        <form id="taskForm" onsubmit="return addTask(event)">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="task-name">Nazwa zadania *</label>
+                    <input type="text" id="task-name" required placeholder="Wpisz nazwę zadania" maxlength="100" />
+                    <small id="task-name-counter" style="color: var(--text-muted); font-size: 0.8rem;">0/100 znaków</small>
+                </div>
+                <div class="form-group">
+                    <label for="task-category">Kategoria *</label>
+                    <select id="task-category" required>
+                        <option value="">-- Wybierz --</option>
+                        <option value="Rozwój">Rozwój</option>
+                        <option value="Testowanie">Testowanie</option>
+                        <option value="Dokumentacja">Dokumentacja</option>
+                        <option value="Infrastruktura">Infrastruktura</option>
+                        <option value="Inne">Inne</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="task-desc">Opis</label>
+                <textarea id="task-desc" placeholder="Opisz szczegóły zadania..."></textarea>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Priorytet *</label>
+                    <div class="radio-group">
+                        <label><input type="radio" name="priority" value="Krytyczny" required /> Krytyczny</label>
+                        <label><input type="radio" name="priority" value="Wysoki" /> Wysoki</label>
+                        <label><input type="radio" name="priority" value="Średni" /> Średni</label>
+                        <label><input type="radio" name="priority" value="Niski" /> Niski</label>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="task-assignee">Przypisz do *</label>
+                    <select id="task-assignee" required>
+                        <option value="">-- Wybierz osobę --</option>
+                        <option value="Jan Kowalski">Jan Kowalski</option>
+                        <option value="Anna Nowak">Anna Nowak</option>
+                        <option value="Piotr Wiśniewski">Piotr Wiśniewski</option>
+                        <option value="Maria Zielińska">Maria Zielińska</option>
+                        <option value="Tomasz Kaczmarek">Tomasz Kaczmarek</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="task-deadline">Termin realizacji *</label>
+                    <input type="date" id="task-deadline" required />
+                </div>
+                <div class="form-group">
+                    <label for="task-effort">Szacowany nakład pracy (h)</label>
+                    <input type="number" id="task-effort" min="0" max="999" placeholder="np. 8" />
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label>Tagi</label>
+                <div class="checkbox-group">
+                    <label><input type="checkbox" value="frontend" /> Frontend</label>
+                    <label><input type="checkbox" value="backend" /> Backend</label>
+                    <label><input type="checkbox" value="ux" /> UX/UI</label>
+                    <label><input type="checkbox" value="security" /> Bezpieczeństwo</label>
+                    <label><input type="checkbox" value="performance" /> Wydajność</label>
+                    <label><input type="checkbox" value="database" /> Baza danych</label>
+                </div>
+            </div>
+            
+            <div class="btn-group">
+                <button type="submit" class="btn btn-primary">💾 Zapisz zadanie</button>
+                <button type="reset" class="btn btn-outline">🔄 Wyczyść formularz</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- PAGE: TEAM -->
+<div class="page" id="page-team">
+    <h1 class="page-title">Zespół</h1>
+    
+    <div class="stats-grid" style="grid-template-columns: repeat(2, 1fr);">
+        <div class="card">
+            <div class="card-title">👤 Jan Kowalski</div>
+            <p style="color: var(--text-muted); margin-bottom: 0.5rem;">Project Manager</p>
+            <p>Email: jan.kowalski@taskflow.pl</p>
+            <div style="margin-top: 0.75rem;">
+                <span>Zadania: </span><strong id="team-jan">0</strong>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-title">👤 Anna Nowak</div>
+            <p style="color: var(--text-muted); margin-bottom: 0.5rem;">Developer</p>
+            <p>Email: anna.nowak@taskflow.pl</p>
+            <div style="margin-top: 0.75rem;">
+                <span>Zadania: </span><strong id="team-anna">0</strong>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-title">👤 Piotr Wiśniewski</div>
+            <p style="color: var(--text-muted); margin-bottom: 0.5rem;">Tester QA</p>
+            <p>Email: piotr.wisniewski@taskflow.pl</p>
+            <div style="margin-top: 0.75rem;">
+                <span>Zadania: </span><strong id="team-piotr">0</strong>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-title">👤 Maria Zielińska</div>
+            <p style="color: var(--text-muted); margin-bottom: 0.5rem;">UX Designer</p>
+            <p>Email: maria.zielinska@taskflow.pl</p>
+            <div style="margin-top: 0.75rem;">
+                <span>Zadania: </span><strong id="team-maria">0</strong>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- PAGE: REPORTS (NEW) -->
+<div class="page" id="page-reports">
+    <h1 class="page-title">Raporty</h1>
+    
+    <div class="card">
+        <div class="card-title">Generowanie raportu</div>
+        <div class="form-group">
+            <label>Typ raportu</label>
+            <div class="radio-group">
+                <label><input type="radio" name="report-type" value="summary" checked /> Podsumowanie</label>
+                <label><input type="radio" name="report-type" value="detailed" /> Szczegółowy</label>
+                <label><input type="radio" name="report-type" value="team" /> Raport zespołu</label>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label for="report-from">Data od</label>
+                <input type="date" id="report-from" />
+            </div>
+            <div class="form-group">
+                <label for="report-to">Data do</label>
+                <input type="date" id="report-to" />
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Format</label>
+            <div class="radio-group">
+                <label><input type="radio" name="report-format" value="html" checked /> HTML (podgląd)</label>
+                <label><input type="radio" name="report-format" value="csv" /> CSV</label>
+                <label><input type="radio" name="report-format" value="pdf" /> PDF</label>
+            </div>
+        </div>
+        <div class="btn-group">
+            <button class="btn btn-primary" onclick="generateReport()">📊 Generuj raport</button>
+        </div>
+    </div>
+    
+    <div class="card" id="report-output" style="display: none; margin-top: 1rem;">
+        <div class="card-title">Wynik raportu</div>
+        <div id="report-content"></div>
+    </div>
+</div>
+
+<!-- PAGE: SETTINGS -->
+<div class="page" id="page-settings">
+    <h1 class="page-title">Ustawienia</h1>
+    
+    <div class="card">
+        <div class="card-title">Preferencje powiadomień</div>
+        <div class="form-group">
+            <div class="checkbox-group" style="flex-direction: column; gap: 0.75rem;">
+                <label><input type="checkbox" id="notif-email" checked /> Powiadomienia e-mail o nowych zadaniach</label>
+                <label><input type="checkbox" id="notif-deadline" checked /> Przypomnienia o zbliżających się terminach</label>
+                <label><input type="checkbox" id="notif-status" /> Powiadomienia o zmianie statusu</label>
+                <label><input type="checkbox" id="notif-comment" checked /> Powiadomienia o nowych komentarzach</label>
+            </div>
+        </div>
+        <div class="btn-group">
+            <button class="btn btn-primary" onclick="saveSettings()">💾 Zapisz ustawienia</button>
+        </div>
+    </div>
+    
+    <div class="card" style="margin-top: 1rem;">
+        <div class="card-title">Eksport danych</div>
+        <p style="color: var(--text-muted); margin-bottom: 1rem;">Pobierz listę zadań w formacie CSV.</p>
+        <button class="btn btn-outline" onclick="exportCSV()">📥 Eksportuj do CSV</button>
+    </div>
+    
+    <div class="card" style="margin-top: 1rem;">
+        <div class="card-title">Informacje o aplikacji</div>
+        <p>Wersja: <strong id="app-version">1.1.0</strong></p>
+        <p>Ostatnia aktualizacja: <strong>2026-04-01</strong></p>
+    </div>
+</div>
+
+<!-- MODAL: TASK DETAILS -->
+<div class="modal-overlay" id="taskModal">
+    <div class="modal">
+        <div class="modal-title" id="modal-title">Szczegóły zadania</div>
+        <div id="modal-body"></div>
+        <div class="comment-section" id="modal-comments">
+            <div class="card-title" style="font-size: 0.95rem;">💬 Komentarze</div>
+            <div id="comments-list"></div>
+            <div style="margin-top: 0.75rem;">
+                <textarea id="new-comment" placeholder="Dodaj komentarz..." style="width:100%; padding:0.5rem; border:1px solid var(--border); border-radius:8px; font-family:inherit; font-size:0.9rem; min-height:60px;"></textarea>
+                <button class="btn btn-primary" style="margin-top:0.5rem;" onclick="addComment()">Dodaj komentarz</button>
+            </div>
+        </div>
+        <div class="btn-group" style="justify-content: flex-end;">
+            <button class="btn btn-outline" onclick="closeModal()">Zamknij</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: DELETE CONFIRMATION -->
+<div class="modal-overlay" id="deleteModal">
+    <div class="modal">
+        <div class="modal-title">⚠️ Potwierdzenie usunięcia</div>
+        <p style="margin-bottom: 1rem;">Czy na pewno chcesz usunąć to zadanie? Operacja jest nieodwracalna.</p>
+        <div class="btn-group" style="justify-content: flex-end;">
+            <button class="btn btn-outline" onclick="closeDeleteModal()">Anuluj</button>
+            <button class="btn btn-danger" id="confirmDeleteBtn">🗑 Usuń</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// ==================== DATA STORE ====================
+let tasks = [
+    { id: 1, name: "Przygotowanie makiet UI", category: "Rozwój", priority: "Wysoki", status: "W trakcie", assignee: "Maria Zielińska", deadline: "2026-04-10", effort: 16, desc: "Przygotowanie makiet interfejsu użytkownika dla nowego modułu raportów.", tags: ["ux","frontend"], comments: [] },
+    { id: 2, name: "Konfiguracja CI/CD", category: "Infrastruktura", priority: "Wysoki", status: "Ukończone", assignee: "Piotr Wiśniewski", deadline: "2026-03-28", effort: 8, desc: "Skonfigurowanie pipeline CI/CD w Jenkins.", tags: ["backend"], comments: [] },
+    { id: 3, name: "Testy integracyjne modułu płatności", category: "Testowanie", priority: "Średni", status: "Nowe", assignee: "Piotr Wiśniewski", deadline: "2026-04-15", effort: 12, desc: "Przeprowadzenie testów integracyjnych nowego modułu płatności.", tags: ["backend","security"], comments: [] },
+    { id: 4, name: "Aktualizacja dokumentacji API", category: "Dokumentacja", priority: "Niski", status: "Nowe", assignee: "Anna Nowak", deadline: "2026-04-20", effort: 4, desc: "Aktualizacja dokumentacji REST API o nowe endpointy.", tags: ["backend"], comments: [] },
+    { id: 5, name: "Optymalizacja zapytań SQL", category: "Rozwój", priority: "Średni", status: "W trakcie", assignee: "Anna Nowak", deadline: "2026-04-12", effort: 10, desc: "Optymalizacja wolnych zapytań SQL w module raportów.", tags: ["backend","performance"], comments: [] },
+];
+let nextId = 6;
+let currentSortField = null;
+let currentSortDir = 'asc';
+let currentViewTaskId = null;
+
+// ==================== NAVIGATION ====================
+function showPage(pageId) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById('page-' + pageId).classList.add('active');
+    document.querySelectorAll('.navbar nav a').forEach(a => a.classList.remove('active'));
+    const navLink = document.getElementById('nav-' + pageId);
+    if (navLink) navLink.classList.add('active');
+    if (pageId === 'dashboard') updateDashboard();
+    if (pageId === 'tasks') renderTasks();
+    if (pageId === 'team') updateTeam();
+}
+
+// ==================== TOAST ====================
+function showToast(message, type = 'success') {
+    const container = document.getElementById('toastContainer');
+    const toast = document.createElement('div');
+    toast.className = 'toast ' + type;
+    const icons = { success: '✅', error: '❌', info: 'ℹ️' };
+    toast.innerHTML = `<span>${icons[type] || ''}</span><span>${message}</span>`;
+    container.appendChild(toast);
+    setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 3000);
+}
+
+// ==================== DASHBOARD ====================
+function updateDashboard() {
+    const total = tasks.length;
+    const newCount = tasks.filter(t => t.status === 'Nowe').length;
+    const progressCount = tasks.filter(t => t.status === 'W trakcie').length;
+    const doneCount = tasks.filter(t => t.status === 'Ukończone').length;
+    
+    document.getElementById('stat-total').textContent = total;
+    document.getElementById('stat-new').textContent = newCount;
+    document.getElementById('stat-progress').textContent = progressCount;
+    document.getElementById('stat-done').textContent = doneCount;
+    
+    const pct = total > 0 ? Math.round((doneCount / newCount) * 100) : 0;
+    document.getElementById('progress-label').textContent = pct + '%';
+    document.getElementById('progress-count').textContent = doneCount + ' / ' + total + ' ukończonych';
+    document.getElementById('progress-fill').style.width = pct + '%';
+    
+    // Recent tasks (last 5)
+    const tbody = document.getElementById('recent-tasks');
+    tbody.innerHTML = '';
+    const sorted = [...tasks].sort((a, b) => b.id - a.id).slice(0, 5);
+    sorted.forEach(t => {
+        const priorityClass = t.priority === 'Wysoki' ? 'badge-high' : t.priority === 'Średni' ? 'badge-medium' : 'badge-low';
+        const statusClass = t.status === 'Nowe' ? 'badge-new' : t.status === 'W trakcie' ? 'badge-progress' : 'badge-done';
+        tbody.innerHTML += `<tr>
+            <td>${t.name}</td>
+            <td><span class="badge ${priorityClass}">${t.priority}</span></td>
+            <td><span class="badge ${statusClass}">${t.status}</span></td>
+            <td>${t.deadline}</td>
+        </tr>`;
+    });
+}
+
+// ==================== SORTING (NEW FEATURE) ====================
+function sortTasks(field) {
+    if (currentSortField === field) {
+        currentSortDir = currentSortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+        currentSortField = field;
+        currentSortDir = 'asc';
+    }
+    
+    // Update sort indicators
+    document.querySelectorAll('th.sortable').forEach(th => {
+        th.classList.remove('sort-asc', 'sort-desc');
+    });
+    
+    renderTasks();
+}
+
+// ==================== TASKS ====================
+function renderTasks() {
+    const statusFilter = document.getElementById('filter-status').value;
+    const priorityFilter = document.getElementById('filter-priority').value;
+    const categoryFilter = document.getElementById('filter-category').value;
+    const search = document.getElementById('filter-search').value.toLowerCase();
+    
+    let filtered = tasks.filter(t => {
+        if (statusFilter && t.status !== statusFilter) return false;
+        if (priorityFilter && t.priority !== priorityFilter) return false;
+        if (categoryFilter && t.category !== categoryFilter) return false;
+        if (search && !t.name.toLowerCase().includes(search)) return false;
+        return true;
+    });
+    
+    // Apply sorting
+    if (currentSortField) {
+        filtered.sort((a, b) => {
+            let valA = a[currentSortField];
+            let valB = b[currentSortField];
+            
+            if (currentSortField === 'priority') {
+                // Should use priority weights: Krytyczny=4, Wysoki=3, Średni=2, Niski=1
+                // But instead does alphabetical comparison
+            }
+            
+            if (typeof valA === 'string') valA = valA.toLowerCase();
+            if (typeof valB === 'string') valB = valB.toLowerCase();
+            
+            if (valA < valB) return currentSortDir === 'asc' ? -1 : 1;
+            if (valA > valB) return currentSortDir === 'asc' ? 1 : -1;
+            return 0;
+        });
+    }
+    
+    const tbody = document.getElementById('tasks-table');
+    tbody.innerHTML = '';
+    
+    if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; color: var(--text-muted); padding: 2rem;">Brak zadań spełniających kryteria.</td></tr>';
+        return;
+    }
+    
+    filtered.forEach(t => {
+        const priorityClass = t.priority === 'Wysoki' ? 'badge-high' : t.priority === 'Średni' ? 'badge-medium' : 'badge-low';
+        const statusClass = t.status === 'Nowe' ? 'badge-new' : t.status === 'W trakcie' ? 'badge-progress' : 'badge-done';
+        tbody.innerHTML += `<tr>
+            <td>#${t.id}</td>
+            <td><a href="#" onclick="viewTask(${t.id})" style="color: var(--primary); text-decoration: none; font-weight: 500;">${t.name}</a></td>
+            <td>${t.category}</td>
+            <td><span class="badge ${priorityClass}">${t.priority}</span></td>
+            <td>
+                <select onchange="changeStatus(${t.id}, this.value)" style="padding: 0.3rem; border-radius: 6px; border: 1px solid var(--border);">
+                    <option value="Nowe" ${t.status === 'Nowe' ? 'selected' : ''}>Nowe</option>
+                    <option value="W trakcie" ${t.status === 'W trakcie' ? 'selected' : ''}>W trakcie</option>
+                    <option value="Ukończone" ${t.status === 'Ukończone' ? 'selected' : ''}>Ukończone</option>
+                </select>
+            </td>
+            <td>${t.assignee}</td>
+            <td>${t.deadline}</td>
+            <td>
+                <button class="btn btn-outline" style="padding: 0.3rem 0.6rem; font-size: 0.8rem;" onclick="viewTask(${t.id})">👁</button>
+                <button class="btn btn-danger" style="padding: 0.3rem 0.6rem; font-size: 0.8rem;" onclick="confirmDelete(${t.id})">🗑</button>
+            </td>
+        </tr>`;
+    });
+}
+
+function changeStatus(id, newStatus) {
+    const task = tasks.find(t => t.id === id);
+    if (task) {
+        task.status = newStatus;
+        showToast(`Status zadania "${task.name}" zmieniony na "${newStatus}".`);
+        // Should call updateDashboard() here but doesn't
+    }
+}
+
+function viewTask(id) {
+    const task = tasks.find(t => t.id === id);
+    if (!task) return;
+    currentViewTaskId = id;
+    document.getElementById('modal-title').textContent = task.name;
+    document.getElementById('modal-body').innerHTML = `
+        <p><strong>ID:</strong> #${task.id}</p>
+        <p><strong>Kategoria:</strong> ${task.category}</p>
+        <p><strong>Priorytet:</strong> ${task.priority}</p>
+        <p><strong>Status:</strong> ${task.status}</p>
+        <p><strong>Przypisane do:</strong> ${task.assignee}</p>
+        <p><strong>Termin:</strong> ${task.deadline}</p>
+        <p><strong>Nakład pracy:</strong> ${task.effort || 'Nie określono'} h</p>
+        <p><strong>Opis:</strong> ${task.desc || 'Brak opisu'}</p>
+        <p><strong>Tagi:</strong> ${task.tags && task.tags.length > 0 ? task.tags.join(', ') : 'Brak'}</p>
+    `;
+    
+    // Render comments
+    renderComments(task);
+    
+    document.getElementById('taskModal').classList.add('active');
+}
+
+// ==================== COMMENTS (NEW FEATURE) ====================
+function renderComments(task) {
+    const list = document.getElementById('comments-list');
+    if (!task.comments || task.comments.length === 0) {
+        list.innerHTML = '<p style="color: var(--text-muted); font-size: 0.85rem;">Brak komentarzy.</p>';
+        return;
+    }
+    list.innerHTML = '';
+    task.comments.forEach(c => {
+        list.innerHTML += `<div class="comment">
+            <span class="comment-author">${c.author}</span>
+            <span class="comment-date"> · ${c.date}</span>
+            <div class="comment-text">${c.text}</div>
+        </div>`;
+    });
+}
+
+function addComment() {
+    const textarea = document.getElementById('new-comment');
+    const text = textarea.value.trim();
+    const task = tasks.find(t => t.id === currentViewTaskId);
+    if (!task) return;
+    if (!task.comments) task.comments = [];
+    task.comments.push({
+        author: 'Jan Kowalski',
+        date: new Date().toLocaleString('pl-PL'),
+        text: text
+    });
+    textarea.value = '';
+    renderComments(task);
+    showToast('Komentarz dodany.');
+}
+
+function closeModal() {
+    document.getElementById('taskModal').classList.remove('active');
+    currentViewTaskId = null;
+}
+
+let taskToDelete = null;
+function confirmDelete(id) {
+    taskToDelete = id;
+    document.getElementById('deleteModal').classList.add('active');
+    document.getElementById('confirmDeleteBtn').onclick = function() {
+        tasks = tasks.filter(t => t.id !== taskToDelete);
+        closeDeleteModal();
+        renderTasks();
+        showToast('Zadanie zostało usunięte.', 'info');
+    };
+}
+function closeDeleteModal() {
+    document.getElementById('deleteModal').classList.remove('active');
+    taskToDelete = null;
+}
+
+// ==================== ADD TASK ====================
+function addTask(e) {
+    e.preventDefault();
+    const name = document.getElementById('task-name').value.trim();
+    const category = document.getElementById('task-category').value;
+    const desc = document.getElementById('task-desc').value.trim();
+    const priority = document.querySelector('input[name="priority"]:checked')?.value;
+    const assignee = document.getElementById('task-assignee').value;
+    const deadline = document.getElementById('task-deadline').value;
+    const effort = parseInt(document.getElementById('task-effort').value) || 0;
+    const tags = [...document.querySelectorAll('.checkbox-group input:checked')].map(cb => cb.value);
+    
+    if (!name || !category || !priority || !assignee || !deadline) {
+        showToast('Wypełnij wszystkie wymagane pola!', 'error');
+        return false;
+    }
+    
+    // User can select a past date and the task will be created
+    
+    // The HTML min attribute is set but the JS doesn't validate it
+    
+    tasks.push({ id: nextId++, name, category, priority, status: 'Nowe', assignee, deadline, effort, desc, tags, comments: [] });
+    showToast(`Zadanie "${name}" zostało dodane!`);
+    document.getElementById('taskForm').reset();
+    document.getElementById('task-name-counter').textContent = '0/100 znaków';
+    showPage('tasks');
+    return false;
+}
+
+// Character counter for task name
+document.addEventListener('DOMContentLoaded', () => {
+    const nameInput = document.getElementById('task-name');
+    if (nameInput) {
+        nameInput.addEventListener('input', () => {
+            document.getElementById('task-name-counter').textContent = nameInput.value.length + '/100 znaków';
+        });
+    }
+});
+
+// ==================== TEAM ====================
+function updateTeam() {
+    const count = (name) => tasks.filter(t => t.assignee === name).length;
+    document.getElementById('team-jan').textContent = count('Jan Kowalski');
+    document.getElementById('team-anna').textContent = count('Anna Nowak');
+    document.getElementById('team-piotr').textContent = count('Piotr Wiśniewski');
+    document.getElementById('team-maria').textContent = count('Maria Zielińska');
+}
+
+// ==================== REPORTS (NEW FEATURE) ====================
+function generateReport() {
+    const reportType = document.querySelector('input[name="report-type"]:checked').value;
+    const dateFrom = document.getElementById('report-from').value;
+    const dateTo = document.getElementById('report-to').value;
+    const format = document.querySelector('input[name="report-format"]:checked').value;
+    
+    
+    if (format === 'pdf') {
+        showToast('Generowanie raportu PDF...', 'info');
+        // No actual PDF generation
+        return;
+    }
+    if (format === 'csv') {
+        showToast('Generowanie raportu CSV...', 'info');
+        // No actual CSV generation (exportCSV in settings still works)
+        return;
+    }
+    
+    let filteredTasks = [...tasks];
+    if (dateFrom) filteredTasks = filteredTasks.filter(t => t.deadline >= dateFrom);
+    if (dateTo) filteredTasks = filteredTasks.filter(t => t.deadline <= dateTo);
+    
+    const output = document.getElementById('report-output');
+    const content = document.getElementById('report-content');
+    output.style.display = 'block';
+    
+    if (reportType === 'summary') {
+        const total = filteredTasks.length;
+        const done = filteredTasks.filter(t => t.status === 'Ukończone').length;
+        const inProgress = filteredTasks.filter(t => t.status === 'W trakcie').length;
+        const newT = filteredTasks.filter(t => t.status === 'Nowe').length;
+        content.innerHTML = `
+            <table>
+                <tr><th>Metryka</th><th>Wartość</th></tr>
+                <tr><td>Łączna liczba zadań</td><td>${total}</td></tr>
+                <tr><td>Nowe</td><td>${newT}</td></tr>
+                <tr><td>W trakcie</td><td>${inProgress}</td></tr>
+                <tr><td>Ukończone</td><td>${done}</td></tr>
+                <tr><td>Łączny nakład pracy (h)</td><td>${filteredTasks.reduce((s,t) => s + (t.effort||0), 0)}</td></tr>
+            </table>
+        `;
+    } else if (reportType === 'detailed') {
+        let html = '<table><thead><tr><th>ID</th><th>Nazwa</th><th>Priorytet</th><th>Status</th><th>Termin</th><th>Nakład (h)</th></tr></thead><tbody>';
+        filteredTasks.forEach(t => {
+            html += `<tr><td>#${t.id}</td><td>${t.name}</td><td>${t.priority}</td><td>${t.status}</td><td>${t.deadline}</td><td>${t.effort||0}</td></tr>`;
+        });
+        html += '</tbody></table>';
+        content.innerHTML = html;
+    } else if (reportType === 'team') {
+        const members = {};
+        filteredTasks.forEach(t => {
+            if (!members[t.assignee]) members[t.assignee] = { total: 0, done: 0, effort: 0 };
+            members[t.assignee].total++;
+            if (t.status === 'Ukończone') members[t.assignee].done++;
+            members[t.assignee].effort += (t.effort || 0);
+        });
+        let html = '<table><thead><tr><th>Członek zespołu</th><th>Zadania</th><th>Ukończone</th><th>Nakład (h)</th></tr></thead><tbody>';
+        Object.entries(members).forEach(([name, data]) => {
+            html += `<tr><td>${name}</td><td>${data.total}</td><td>${data.done}</td><td>${data.effort}</td></tr>`;
+        });
+        html += '</tbody></table>';
+        content.innerHTML = html;
+    }
+    
+    showToast('Raport wygenerowany.', 'success');
+}
+
+// ==================== SETTINGS ====================
+function saveSettings() {
+    showToast('Ustawienia zostały zapisane.');
+}
+
+function exportCSV() {
+    let csv = 'ID,Nazwa,Kategoria,Priorytet,Status,Przypisane do,Termin,Nakład pracy\n';
+    tasks.forEach(t => {
+        csv += `${t.id},"${t.name}","${t.category}","${t.priority}","${t.status}","${t.assignee}","${t.deadline}",${t.effort || 0}\n`;
+    });
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'zadania_export.csv';
+    link.click();
+    showToast('Dane wyeksportowane do CSV.');
+}
+
+// ==================== INIT ====================
+document.addEventListener('DOMContentLoaded', () => {
+    updateDashboard();
+});
+
+// Close modals on overlay click
+document.getElementById('taskModal').addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
+});
+document.getElementById('deleteModal').addEventListener('click', function(e) {
+    if (e.target === this) closeDeleteModal();
+});
+</script>
+</body>
+</html>

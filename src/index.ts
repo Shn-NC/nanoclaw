@@ -234,6 +234,66 @@ export function _setRegisteredGroups(
 }
 
 /**
+ * After a container finishes, scan shared inbox for files written by the agent
+ * and enqueue any recipient agents that have new messages waiting.
+ * Uses file mtime to ignore files that predate this container run.
+ */
+function checkAndWakeInboxRecipients(
+  senderFolder: string,
+  containerStartMs: number,
+): void {
+  const sharedInboxDir = path.join(GROUPS_DIR, 'shared', 'inbox');
+  if (!fs.existsSync(sharedInboxDir)) return;
+
+  let files: string[];
+  try {
+    files = fs
+      .readdirSync(sharedInboxDir)
+      .filter((f) => f.startsWith('to_') && f.endsWith('.json'));
+  } catch {
+    return;
+  }
+
+  for (const file of files) {
+    const agentName = file.slice(3, -5); // "to_TestLead.json" → "TestLead"
+
+    // Find the registered group whose folder suffix matches the agent name
+    const entry = Object.entries(registeredGroups).find(([, g]) => {
+      const suffix = g.folder.substring(g.folder.indexOf('_') + 1);
+      return suffix.toLowerCase() === agentName.toLowerCase();
+    });
+    if (!entry) continue;
+
+    const [jid, group] = entry;
+    if (group.folder === senderFolder) continue; // don't wake self
+
+    try {
+      const stat = fs.statSync(path.join(sharedInboxDir, file));
+      if (stat.size === 0 || stat.mtimeMs < containerStartMs) continue;
+    } catch {
+      continue;
+    }
+
+    const trigger = group.trigger ?? DEFAULT_TRIGGER;
+    storeMessage({
+      id: `inbox-wakeup-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      chat_jid: jid,
+      sender: 'system',
+      sender_name: 'System',
+      content: `${trigger} [Nowa wiadomość od agenta ${senderFolder} — sprawdź /shared/inbox/${file}]`,
+      timestamp: new Date().toISOString(),
+      is_from_me: false,
+    });
+
+    logger.info(
+      { agentName, folder: group.folder, jid },
+      'Inbox message detected — waking agent',
+    );
+    queue.enqueueMessageCheck(jid);
+  }
+}
+
+/**
  * Process all pending messages for a group.
  * Called by the GroupQueue when it's this group's turn.
  */
@@ -318,6 +378,7 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
   await channel.setTyping?.(chatJid, true);
   let hadError = false;
   let outputSentToUser = false;
+  const containerStartMs = Date.now();
 
   const output = await runAgent(group, prompt, chatJid, async (result) => {
     // Streaming output callback — called for each agent result
@@ -332,6 +393,16 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
       if (text) {
         await channel.sendMessage(chatJid, text);
         outputSentToUser = true;
+        storeMessage({
+          id: `agent-out-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          chat_jid: chatJid,
+          sender: group.folder,
+          sender_name: (group.trigger ?? DEFAULT_TRIGGER).replace(/^@/, ''),
+          content: text,
+          timestamp: new Date().toISOString(),
+          is_from_me: true,
+          is_bot_message: true,
+        });
       }
       // Only reset idle timer on actual results, not session-update markers (result: null)
       resetIdleTimer();
@@ -348,6 +419,11 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
 
   await channel.setTyping?.(chatJid, false);
   if (idleTimer) clearTimeout(idleTimer);
+
+  // If agent completed successfully, check shared inbox for wake-up signals
+  if (output !== 'error' && !hadError) {
+    checkAndWakeInboxRecipients(group.folder, containerStartMs);
+  }
 
   if (output === 'error' || hadError) {
     // If we already sent output to the user, don't roll back the cursor —
@@ -790,10 +866,23 @@ async function main(): Promise<void> {
     },
   });
   startIpcWatcher({
-    sendMessage: (jid, text) => {
+    sendMessage: async (jid, text) => {
       const channel = findChannel(channels, jid);
       if (!channel) throw new Error(`No channel for JID: ${jid}`);
-      return channel.sendMessage(jid, text);
+      await channel.sendMessage(jid, text);
+      const grp = registeredGroups[jid];
+      if (grp) {
+        storeMessage({
+          id: `ipc-out-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          chat_jid: jid,
+          sender: grp.folder,
+          sender_name: (grp.trigger ?? DEFAULT_TRIGGER).replace(/^@/, ''),
+          content: text,
+          timestamp: new Date().toISOString(),
+          is_from_me: true,
+          is_bot_message: true,
+        });
+      }
     },
     registeredGroups: () => registeredGroups,
     registerGroup,

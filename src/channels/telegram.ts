@@ -80,6 +80,7 @@ export class TelegramChannel implements Channel {
 
   private entries: BotEntry[] = [];
   private opts: TelegramChannelOpts;
+  private loggedMessageIds = new Set<string>(); // dedup log entries across bots for same message
 
   constructor(configs: TokenConfig[], opts: TelegramChannelOpts) {
     this.opts = opts;
@@ -148,12 +149,6 @@ export class TelegramChannel implements Channel {
     });
 
     bot.on('message:text', async (ctx) => {
-      console.log(
-        'Received message from',
-        ctx.from?.username,
-        'text:',
-        ctx.message.text,
-      );
       if (ctx.message.text.startsWith('/')) {
         const cmd = ctx.message.text.slice(1).split(/[\s@]/)[0].toLowerCase();
         if (TELEGRAM_BOT_COMMANDS.has(cmd)) return;
@@ -169,6 +164,17 @@ export class TelegramChannel implements Channel {
         'Unknown';
       const sender = ctx.from?.id.toString() || '';
       const msgId = ctx.message.message_id.toString();
+
+      // Deduplicate log entries: only the first bot to see a given message logs it.
+      // All bots still call onMessage() (correct — each has its own chatJid).
+      const logKey = `${msgId}:${ctx.chat.id}`;
+      const isFirstSeen = !this.loggedMessageIds.has(logKey);
+      if (isFirstSeen) {
+        this.loggedMessageIds.add(logKey);
+        if (this.loggedMessageIds.size > 500) {
+          this.loggedMessageIds.delete(this.loggedMessageIds.values().next().value!);
+        }
+      }
       const threadId = ctx.message.message_thread_id;
 
       const chatName =
@@ -240,18 +246,16 @@ export class TelegramChannel implements Channel {
         const hasTrigger = personalTriggerRe.test(content.trim());
         const isBroadcast = /(@everyone|@team)\b/i.test(content);
         if (!hasTrigger && !isBroadcast) {
-          logger.debug(
-            { chatJid, chatName, role: roleLabel },
-            'Group context message stored (no trigger)',
-          );
           return;
         }
       }
 
-      logger.info(
-        { chatJid, chatName, sender: senderName, role: roleLabel },
-        'Telegram message stored',
-      );
+      if (isFirstSeen) {
+        logger.info(
+          { chatJid, chatName, sender: senderName },
+          'Telegram message stored',
+        );
+      }
     });
 
     // Handle non-text messages with placeholders so the agent knows something was sent

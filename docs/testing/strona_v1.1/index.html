@@ -145,7 +145,7 @@
 
 <!-- NAVBAR -->
 <div class="navbar">
-    <div class="logo">📋 TaskFlow</div>
+    <div class="logo">📋 TaskFlow <span style="font-size: 0.75rem; font-weight: 400; opacity: 0.7;">v1.1</span></div>
     <nav>
         <a href="#" onclick="showPage('dashboard')" class="active" id="nav-dashboard">Dashboard</a>
         <a href="#" onclick="showPage('tasks')" id="nav-tasks">Zadania</a>
@@ -605,8 +605,6 @@ function renderTasks() {
             let valB = b[currentSortField];
             
             if (currentSortField === 'priority') {
-                // Should use priority weights: Krytyczny=4, Wysoki=3, Średni=2, Niski=1
-                // But instead does alphabetical comparison
             }
             
             if (typeof valA === 'string') valA = valA.toLowerCase();
@@ -656,7 +654,6 @@ function changeStatus(id, newStatus) {
     if (task) {
         task.status = newStatus;
         showToast(`Status zadania "${task.name}" zmieniony na "${newStatus}".`);
-        // Should call updateDashboard() here but doesn't
     }
 }
 
@@ -754,10 +751,6 @@ function addTask(e) {
         return false;
     }
     
-    // User can select a past date and the task will be created
-    
-    // The HTML min attribute is set but the JS doesn't validate it
-    
     tasks.push({ id: nextId++, name, category, priority, status: 'Nowe', assignee, deadline, effort, desc, tags, comments: [] });
     showToast(`Zadanie "${name}" zostało dodane!`);
     document.getElementById('taskForm').reset();
@@ -795,12 +788,10 @@ function generateReport() {
     
     if (format === 'pdf') {
         showToast('Generowanie raportu PDF...', 'info');
-        // No actual PDF generation
         return;
     }
     if (format === 'csv') {
         showToast('Generowanie raportu CSV...', 'info');
-        // No actual CSV generation (exportCSV in settings still works)
         return;
     }
     

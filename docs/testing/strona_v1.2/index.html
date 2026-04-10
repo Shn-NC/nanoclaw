@@ -84,6 +84,7 @@
         
         /* Badges */
         .badge { padding: 0.2rem 0.6rem; border-radius: 999px; font-size: 0.75rem; font-weight: 600; display: inline-block; }
+        .badge-critical { background: #7f1d1d; color: #ffffff; }
         .badge-high { background: #fef2f2; color: #dc2626; }
         .badge-medium { background: #fffbeb; color: #d97706; }
         .badge-low { background: #f0fdf4; color: #16a34a; }
@@ -145,7 +146,7 @@
 
 <!-- NAVBAR -->
 <div class="navbar">
-    <div class="logo">📋 TaskFlow <span style="font-size: 0.75rem; font-weight: 400; opacity: 0.7;">v1.1</span></div>
+    <div class="logo">📋 TaskFlow <span style="font-size: 0.75rem; font-weight: 400; opacity: 0.7;">v1.2</span></div>
     <nav>
         <a href="#" onclick="showPage('dashboard')" class="active" id="nav-dashboard">Dashboard</a>
         <a href="#" onclick="showPage('tasks')" id="nav-tasks">Zadania</a>
@@ -244,6 +245,15 @@
         <input type="text" id="filter-search" placeholder="Szukaj zadania..." oninput="renderTasks()" />
         <button class="btn btn-primary" onclick="showPage('new-task')">+ Nowe zadanie</button>
     </div>
+    <div style="display: flex; gap: 0.75rem; margin-bottom: 1rem; flex-wrap: wrap; align-items: center; font-size: 0.9rem;">
+        <span style="color: var(--text-muted); font-weight: 500;">Tagi:</span>
+        <label style="display:flex;align-items:center;gap:0.3rem;cursor:pointer;"><input type="checkbox" class="tag-filter" value="frontend" onchange="renderTasks()" /> Frontend</label>
+        <label style="display:flex;align-items:center;gap:0.3rem;cursor:pointer;"><input type="checkbox" class="tag-filter" value="backend" onchange="renderTasks()" /> Backend</label>
+        <label style="display:flex;align-items:center;gap:0.3rem;cursor:pointer;"><input type="checkbox" class="tag-filter" value="ux" onchange="renderTasks()" /> UX/UI</label>
+        <label style="display:flex;align-items:center;gap:0.3rem;cursor:pointer;"><input type="checkbox" class="tag-filter" value="security" onchange="renderTasks()" /> Bezpieczeństwo</label>
+        <label style="display:flex;align-items:center;gap:0.3rem;cursor:pointer;"><input type="checkbox" class="tag-filter" value="performance" onchange="renderTasks()" /> Wydajność</label>
+        <label style="display:flex;align-items:center;gap:0.3rem;cursor:pointer;"><input type="checkbox" class="tag-filter" value="database" onchange="renderTasks()" /> Baza danych</label>
+    </div>
     
     <div class="card">
         <div class="table-container">
@@ -275,8 +285,8 @@
             <div class="form-row">
                 <div class="form-group">
                     <label for="task-name">Nazwa zadania *</label>
-                    <input type="text" id="task-name" required placeholder="Wpisz nazwę zadania" maxlength="100" />
-                    <small id="task-name-counter" style="color: var(--text-muted); font-size: 0.8rem;">0/100 znaków</small>
+                    <input type="text" id="task-name" required placeholder="Wpisz nazwę zadania" maxlength="150" />
+                    <small id="task-name-counter" style="color: var(--text-muted); font-size: 0.8rem;">0/150 znaków</small>
                 </div>
                 <div class="form-group">
                     <label for="task-category">Kategoria *</label>
@@ -354,7 +364,7 @@
 <div class="page" id="page-team">
     <h1 class="page-title">Zespół</h1>
     
-    <div class="stats-grid" style="grid-template-columns: repeat(2, 1fr);">
+    <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));">
         <div class="card">
             <div class="card-title">👤 Jan Kowalski</div>
             <p style="color: var(--text-muted); margin-bottom: 0.5rem;">Project Manager</p>
@@ -385,6 +395,14 @@
             <p>Email: maria.zielinska@taskflow.pl</p>
             <div style="margin-top: 0.75rem;">
                 <span>Zadania: </span><strong id="team-maria">0</strong>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-title">👤 Tomasz Kaczmarek</div>
+            <p style="color: var(--text-muted); margin-bottom: 0.5rem;">DevOps Engineer</p>
+            <p>Email: t.kaczmarek@taskflow.pl</p>
+            <div style="margin-top: 0.75rem;">
+                <span>Zadania: </span><strong id="team-tomasz">0</strong>
             </div>
         </div>
     </div>
@@ -460,8 +478,8 @@
     
     <div class="card" style="margin-top: 1rem;">
         <div class="card-title">Informacje o aplikacji</div>
-        <p>Wersja: <strong id="app-version">1.1.0</strong></p>
-        <p>Ostatnia aktualizacja: <strong>2026-04-01</strong></p>
+        <p>Wersja: <strong id="app-version">1.2.0</strong></p>
+        <p>Ostatnia aktualizacja: <strong>2026-04-09</strong></p>
     </div>
 </div>
 
@@ -496,7 +514,7 @@
     </div>
 </div>
 
-<script>
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
 // ==================== DATA STORE ====================
 let tasks = [
     { id: 1, name: "Przygotowanie makiet UI", category: "Rozwój", priority: "Wysoki", status: "W trakcie", assignee: "Maria Zielińska", deadline: "2026-04-10", effort: 16, desc: "Przygotowanie makiet interfejsu użytkownika dla nowego modułu raportów.", tags: ["ux","frontend"], comments: [] },
@@ -517,6 +535,10 @@ function showPage(pageId) {
     document.querySelectorAll('.navbar nav a').forEach(a => a.classList.remove('active'));
     const navLink = document.getElementById('nav-' + pageId);
     if (navLink) navLink.classList.add('active');
+    // Reset sort state when switching pages
+    currentSortField = null;
+    currentSortDir = 'asc';
+    document.querySelectorAll('th.sortable').forEach(th => th.classList.remove('sort-asc', 'sort-desc'));
     if (pageId === 'dashboard') updateDashboard();
     if (pageId === 'tasks') renderTasks();
     if (pageId === 'team') updateTeam();
@@ -545,7 +567,7 @@ function updateDashboard() {
     document.getElementById('stat-progress').textContent = progressCount;
     document.getElementById('stat-done').textContent = doneCount;
     
-    const pct = total > 0 ? Math.round((doneCount / newCount) * 100) : 0;
+    const pct = total > 0 ? Math.round((doneCount / total) * 100) : 0;
     document.getElementById('progress-label').textContent = pct + '%';
     document.getElementById('progress-count').textContent = doneCount + ' / ' + total + ' ukończonych';
     document.getElementById('progress-fill').style.width = pct + '%';
@@ -555,7 +577,7 @@ function updateDashboard() {
     tbody.innerHTML = '';
     const sorted = [...tasks].sort((a, b) => b.id - a.id).slice(0, 5);
     sorted.forEach(t => {
-        const priorityClass = t.priority === 'Wysoki' ? 'badge-high' : t.priority === 'Średni' ? 'badge-medium' : 'badge-low';
+        const priorityClass = t.priority === 'Krytyczny' ? 'badge-critical' : t.priority === 'Wysoki' ? 'badge-high' : t.priority === 'Średni' ? 'badge-medium' : 'badge-low';
         const statusClass = t.status === 'Nowe' ? 'badge-new' : t.status === 'W trakcie' ? 'badge-progress' : 'badge-done';
         tbody.innerHTML += `<tr>
             <td>${t.name}</td>
@@ -567,6 +589,8 @@ function updateDashboard() {
 }
 
 // ==================== SORTING (NEW FEATURE) ====================
+const PRIORITY_WEIGHTS = { 'Krytyczny': 4, 'Wysoki': 3, 'Średni': 2, 'Niski': 1 };
+
 function sortTasks(field) {
     if (currentSortField === field) {
         currentSortDir = currentSortDir === 'asc' ? 'desc' : 'asc';
@@ -579,6 +603,13 @@ function sortTasks(field) {
     document.querySelectorAll('th.sortable').forEach(th => {
         th.classList.remove('sort-asc', 'sort-desc');
     });
+    // Find the clicked header and add indicator
+    const headers = document.querySelectorAll('th.sortable');
+    headers.forEach(th => {
+        if (th.textContent.trim().toLowerCase().includes(field === 'id' ? 'id' : field === 'name' ? 'nazwa' : field === 'priority' ? 'priorytet' : 'termin')) {
+            th.classList.add(currentSortDir === 'asc' ? 'sort-asc' : 'sort-desc');
+        }
+    });
     
     renderTasks();
 }
@@ -589,12 +620,14 @@ function renderTasks() {
     const priorityFilter = document.getElementById('filter-priority').value;
     const categoryFilter = document.getElementById('filter-category').value;
     const search = document.getElementById('filter-search').value.toLowerCase();
+    const selectedTags = [...document.querySelectorAll('.tag-filter:checked')].map(cb => cb.value);
     
     let filtered = tasks.filter(t => {
         if (statusFilter && t.status !== statusFilter) return false;
         if (priorityFilter && t.priority !== priorityFilter) return false;
         if (categoryFilter && t.category !== categoryFilter) return false;
         if (search && !t.name.toLowerCase().includes(search)) return false;
+        if (selectedTags.length > 0 && (!t.tags || !selectedTags.some(tag => t.tags.includes(tag)))) return false;
         return true;
     });
     
@@ -605,10 +638,12 @@ function renderTasks() {
             let valB = b[currentSortField];
             
             if (currentSortField === 'priority') {
+                valA = PRIORITY_WEIGHTS[valA] || 0;
+                valB = PRIORITY_WEIGHTS[valB] || 0;
+            } else {
+                if (typeof valA === 'string') valA = valA.toLowerCase();
+                if (typeof valB === 'string') valB = valB.toLowerCase();
             }
-            
-            if (typeof valA === 'string') valA = valA.toLowerCase();
-            if (typeof valB === 'string') valB = valB.toLowerCase();
             
             if (valA < valB) return currentSortDir === 'asc' ? -1 : 1;
             if (valA > valB) return currentSortDir === 'asc' ? 1 : -1;
@@ -625,7 +660,7 @@ function renderTasks() {
     }
     
     filtered.forEach(t => {
-        const priorityClass = t.priority === 'Wysoki' ? 'badge-high' : t.priority === 'Średni' ? 'badge-medium' : 'badge-low';
+        const priorityClass = t.priority === 'Krytyczny' ? 'badge-critical' : t.priority === 'Wysoki' ? 'badge-high' : t.priority === 'Średni' ? 'badge-medium' : 'badge-low';
         const statusClass = t.status === 'Nowe' ? 'badge-new' : t.status === 'W trakcie' ? 'badge-progress' : 'badge-done';
         tbody.innerHTML += `<tr>
             <td>#${t.id}</td>
@@ -654,6 +689,7 @@ function changeStatus(id, newStatus) {
     if (task) {
         task.status = newStatus;
         showToast(`Status zadania "${task.name}" zmieniony na "${newStatus}".`);
+        updateDashboard();
     }
 }
 
@@ -700,6 +736,10 @@ function renderComments(task) {
 function addComment() {
     const textarea = document.getElementById('new-comment');
     const text = textarea.value.trim();
+    if (!text) {
+        showToast('Komentarz nie może być pusty!', 'error');
+        return;
+    }
     const task = tasks.find(t => t.id === currentViewTaskId);
     if (!task) return;
     if (!task.comments) task.comments = [];
@@ -744,7 +784,7 @@ function addTask(e) {
     const assignee = document.getElementById('task-assignee').value;
     const deadline = document.getElementById('task-deadline').value;
     const effort = parseInt(document.getElementById('task-effort').value) || 0;
-    const tags = [...document.querySelectorAll('.checkbox-group input:checked')].map(cb => cb.value);
+    const tags = [...document.querySelectorAll('#taskForm .checkbox-group input:checked')].map(cb => cb.value);
     
     if (!name || !category || !priority || !assignee || !deadline) {
         showToast('Wypełnij wszystkie wymagane pola!', 'error');
@@ -754,7 +794,7 @@ function addTask(e) {
     tasks.push({ id: nextId++, name, category, priority, status: 'Nowe', assignee, deadline, effort, desc, tags, comments: [] });
     showToast(`Zadanie "${name}" zostało dodane!`);
     document.getElementById('taskForm').reset();
-    document.getElementById('task-name-counter').textContent = '0/100 znaków';
+    document.getElementById('task-name-counter').textContent = '0/150 znaków';
     showPage('tasks');
     return false;
 }
@@ -764,7 +804,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const nameInput = document.getElementById('task-name');
     if (nameInput) {
         nameInput.addEventListener('input', () => {
-            document.getElementById('task-name-counter').textContent = nameInput.value.length + '/100 znaków';
+            document.getElementById('task-name-counter').textContent = nameInput.value.length + '/150 znaków';
         });
     }
 });
@@ -776,6 +816,7 @@ function updateTeam() {
     document.getElementById('team-anna').textContent = count('Anna Nowak');
     document.getElementById('team-piotr').textContent = count('Piotr Wiśniewski');
     document.getElementById('team-maria').textContent = count('Maria Zielińska');
+    document.getElementById('team-tomasz').textContent = count('Tomasz Kaczmarek');
 }
 
 // ==================== REPORTS (NEW FEATURE) ====================
@@ -785,20 +826,41 @@ function generateReport() {
     const dateTo = document.getElementById('report-to').value;
     const format = document.querySelector('input[name="report-format"]:checked').value;
     
-    
-    if (format === 'pdf') {
-        showToast('Generowanie raportu PDF...', 'info');
-        return;
-    }
-    if (format === 'csv') {
-        showToast('Generowanie raportu CSV...', 'info');
-        return;
-    }
-    
     let filteredTasks = [...tasks];
     if (dateFrom) filteredTasks = filteredTasks.filter(t => t.deadline >= dateFrom);
     if (dateTo) filteredTasks = filteredTasks.filter(t => t.deadline <= dateTo);
+
+    if (filteredTasks.length === 0) {
+        showToast('Brak zadań w wybranym zakresie.', 'info');
+        return;
+    }
     
+    if (format === 'pdf') {
+        // Generate HTML report first, then trigger print
+        renderReportHTML(reportType, filteredTasks);
+        setTimeout(() => window.print(), 300);
+        showToast('Otwieranie okna drukowania...', 'info');
+        return;
+    }
+    if (format === 'csv') {
+        let csv = 'ID,Nazwa,Kategoria,Priorytet,Status,Przypisane do,Termin,Nakład pracy\n';
+        filteredTasks.forEach(t => {
+            csv += `${t.id},"${t.name}","${t.category}","${t.priority}","${t.status}","${t.assignee}","${t.deadline}",${t.effort || 0}\n`;
+        });
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `raport_${reportType}_${new Date().toISOString().slice(0,10)}.csv`;
+        link.click();
+        showToast('Raport CSV wyeksportowany.', 'success');
+        return;
+    }
+    
+    renderReportHTML(reportType, filteredTasks);
+    showToast('Raport wygenerowany.', 'success');
+}
+
+function renderReportHTML(reportType, filteredTasks) {
     const output = document.getElementById('report-output');
     const content = document.getElementById('report-content');
     output.style.display = 'block';
@@ -819,9 +881,9 @@ function generateReport() {
             </table>
         `;
     } else if (reportType === 'detailed') {
-        let html = '<table><thead><tr><th>ID</th><th>Nazwa</th><th>Priorytet</th><th>Status</th><th>Termin</th><th>Nakład (h)</th></tr></thead><tbody>';
+        let html = '<table><thead><tr><th>ID</th><th>Nazwa</th><th>Priorytet</th><th>Status</th><th>Przypisane do</th><th>Termin</th><th>Nakład (h)</th></tr></thead><tbody>';
         filteredTasks.forEach(t => {
-            html += `<tr><td>#${t.id}</td><td>${t.name}</td><td>${t.priority}</td><td>${t.status}</td><td>${t.deadline}</td><td>${t.effort||0}</td></tr>`;
+            html += `<tr><td>#${t.id}</td><td>${t.name}</td><td>${t.priority}</td><td>${t.status}</td><td>${t.assignee}</td><td>${t.deadline}</td><td>${t.effort||0}</td></tr>`;
         });
         html += '</tbody></table>';
         content.innerHTML = html;
@@ -840,8 +902,6 @@ function generateReport() {
         html += '</tbody></table>';
         content.innerHTML = html;
     }
-    
-    showToast('Raport wygenerowany.', 'success');
 }
 
 // ==================== SETTINGS ====================

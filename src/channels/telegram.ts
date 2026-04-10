@@ -172,7 +172,9 @@ export class TelegramChannel implements Channel {
       if (isFirstSeen) {
         this.loggedMessageIds.add(logKey);
         if (this.loggedMessageIds.size > 500) {
-          this.loggedMessageIds.delete(this.loggedMessageIds.values().next().value!);
+          this.loggedMessageIds.delete(
+            this.loggedMessageIds.values().next().value!,
+          );
         }
       }
       const threadId = ctx.message.message_thread_id;

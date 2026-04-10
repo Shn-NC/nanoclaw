@@ -379,6 +379,11 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
   let hadError = false;
   let outputSentToUser = false;
   const containerStartMs = Date.now();
+  // Inbox wake-up fires once on the first streaming success result, not after
+  // the container closes — in streaming mode the container stays alive for
+  // IDLE_TIMEOUT (30 min) after the last output, so waiting for runAgent()
+  // to return would delay the pipeline by the full idle period.
+  let inboxChecked = false;
 
   const output = await runAgent(group, prompt, chatJid, async (result) => {
     // Streaming output callback — called for each agent result
@@ -410,6 +415,11 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
 
     if (result.status === 'success') {
       queue.notifyIdle(chatJid);
+      // Check inbox once after first success — don't wait for container close
+      if (!inboxChecked) {
+        inboxChecked = true;
+        checkAndWakeInboxRecipients(group.folder, containerStartMs);
+      }
     }
 
     if (result.status === 'error') {
@@ -420,8 +430,8 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
   await channel.setTyping?.(chatJid, false);
   if (idleTimer) clearTimeout(idleTimer);
 
-  // If agent completed successfully, check shared inbox for wake-up signals
-  if (output !== 'error' && !hadError) {
+  // Fallback for non-streaming mode (legacy path): check inbox after container closes
+  if (!inboxChecked && output !== 'error' && !hadError) {
     checkAndWakeInboxRecipients(group.folder, containerStartMs);
   }
 

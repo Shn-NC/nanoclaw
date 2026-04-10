@@ -1,5 +1,5 @@
 #!/bin/bash
-# monitor.sh — NanoClaw Agent Monitor Dashboard v2
+# monitor.sh — NanoClaw Agent Monitor Dashboard v3
 # Uruchom w osobnej zakładce terminala VSCode:
 #   cd ~/nano-claw && bash monitor.sh
 #
@@ -8,6 +8,7 @@
 NANOCLAW_DIR="${HOME}/nano-claw"
 GROUPS_DIR="${NANOCLAW_DIR}/groups"
 INBOX_DIR="${GROUPS_DIR}/shared/inbox"
+DB_PATH="${NANOCLAW_DIR}/store/messages.db"
 REFRESH=3
 
 # Agenci i ich foldery
@@ -41,12 +42,10 @@ CL="\033[K"     # clear to end of line
 # ==================== DATA FUNCTIONS ====================
 
 is_nanoclaw_running() {
-  # Sprawdź systemd
   if systemctl --user is-active nanoclaw &>/dev/null; then
     echo "systemd"
     return
   fi
-  # Sprawdź proces npm/node z nanoclaw
   if pgrep -f "nanoclaw.*index.js" &>/dev/null || pgrep -f "node dist/index.js" &>/dev/null; then
     echo "process"
     return
@@ -78,7 +77,6 @@ get_last_log_info() {
   duration=$(grep "^Duration:" "$latest_log" 2>/dev/null | head -1 | sed 's/Duration: //' | sed 's/ms//')
   exit_code=$(grep "^Exit Code:" "$latest_log" 2>/dev/null | head -1 | sed 's/Exit Code: //')
 
-  # Format duration
   if [[ -n "$duration" && "$duration" != "null" ]]; then
     local secs=$((duration / 1000))
     if [[ $secs -ge 60 ]]; then
@@ -88,12 +86,37 @@ get_last_log_info() {
     fi
   fi
 
-  # Format timestamp
   if [[ -n "$timestamp" && "$timestamp" != "null" ]]; then
     timestamp=$(echo "$timestamp" | sed 's/T/ /' | sed 's/\..*//')
   fi
 
   echo "${timestamp:-null}|${duration:-null}|${exit_code:-null}"
+}
+
+get_last_action() {
+  local name="$1"
+  local max_len="${2:-70}"
+
+  [[ ! -f "$DB_PATH" ]] && echo "null" && return
+
+  # Pobierz ostatnią wiadomość agenta z bazy (is_from_me = 1, sender_name = imię agenta)
+  local msg
+  msg=$(sqlite3 "$DB_PATH" "SELECT content FROM messages WHERE is_from_me = 1 AND sender_name = '${name}' ORDER BY timestamp DESC LIMIT 1;" 2>/dev/null)
+
+  if [[ -z "$msg" ]]; then
+    echo "null"
+    return
+  fi
+
+  # Usuń tagi <internal>
+  msg=$(echo "$msg" | sed 's/<internal>.*<\/internal>//g' | tr '\n' ' ' | sed 's/  */ /g' | xargs)
+
+  # Obetnij do max_len
+  if [[ ${#msg} -gt $max_len ]]; then
+    msg="${msg:0:$max_len}..."
+  fi
+
+  echo "$msg"
 }
 
 get_last_workspace_file() {
@@ -116,10 +139,10 @@ get_inbox_info() {
     telegram_SolutionDesigner)    inbox_file="to_SolutionDesigner.json" ;;
   esac
 
-  local path="${INBOX_DIR}/${inbox_file}"
-  if [[ -n "$inbox_file" && -f "$path" ]]; then
+  local fpath="${INBOX_DIR}/${inbox_file}"
+  if [[ -n "$inbox_file" && -f "$fpath" ]]; then
     local count
-    count=$(grep -c '"from"' "$path" 2>/dev/null || echo "0")
+    count=$(grep -c '"from"' "$fpath" 2>/dev/null || echo "0")
     echo "${count} msg"
   else
     echo "-"
@@ -142,9 +165,9 @@ render() {
   now=$(date '+%Y-%m-%d %H:%M:%S')
 
   # Nagłówek
-  print_line "${B}${BL}══════════════════════════════════════════════════════════════════${R}"
-  print_line "${B}   NanoClaw QA Agent Monitor${R}                      ${D}${now}${R}"
-  print_line "${B}${BL}══════════════════════════════════════════════════════════════════${R}"
+  print_line "${B}${BL}══════════════════════════════════════════════════════════════════════════════════${R}"
+  print_line "${B}   NanoClaw QA Agent Monitor${R}                                    ${D}${now}${R}"
+  print_line "${B}${BL}══════════════════════════════════════════════════════════════════════════════════${R}"
   print_line ""
 
   # NanoClaw status
@@ -183,9 +206,10 @@ render() {
     fi
 
     # Last run
-    local log_info last_run_str
+    local log_info
     IFS='|' read -r log_time log_duration log_exit <<< "$(get_last_log_info "$name")"
 
+    local last_run_str
     if [[ "$log_time" == "null" ]]; then
       last_run_str="${D}no runs yet${R}                   "
     else
@@ -195,7 +219,6 @@ render() {
       else
         exit_indicator="${RD}ERR${R}"
       fi
-      # Skróć timestamp do HH:MM
       local short_time
       short_time=$(echo "$log_time" | awk '{print $2}' | cut -d: -f1-2)
       local short_date
@@ -206,12 +229,25 @@ render() {
     printf "  │ ${CY}%-6s${R} │ %-22s │ " "$name" "$role"
     printf "%b" "$status_str"
     printf "│ %b" "$last_run_str"
-    tput el  # clear rest of line
+    tput el
     echo " │"
     LINE=$((LINE + 1))
   done
 
   print_line "  ${B}└────────┴────────────────────────┴──────────┴──────────────────────────────┘${R}"
+  print_line ""
+
+  # Last action per agent
+  print_line "  ${B}Last action:${R}"
+  for name in Bill Roy Tony Rick Jim; do
+    local action
+    action=$(get_last_action "$name" 72)
+    if [[ "$action" == "null" ]]; then
+      print_line "    ${CY}${name}${R}: ${D}-${R}"
+    else
+      print_line "    ${CY}${name}${R}: ${action}"
+    fi
+  done
   print_line ""
 
   # Workspace files
@@ -237,7 +273,7 @@ render() {
   print_line ""
   print_line "  ${D}Refreshing every ${REFRESH}s. Ctrl+C to stop.${R}"
 
-  # Wyczyść resztę ekranu pod dashboardem
+  # Wyczyść resztę ekranu
   tput ed
 }
 
@@ -245,7 +281,6 @@ render() {
 
 trap 'tput cnorm; echo -e "\n${R}Monitor stopped."; exit 0' INT
 
-# Ukryj kursor i wyczyść ekran raz na starcie
 tput civis
 clear
 
